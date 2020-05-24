@@ -11,6 +11,10 @@ pub enum TileType {
     Floor,
 }
 
+const MAPWIDTH: usize = 80;
+const MAPHEIGHT: usize = 43;
+const MAPCOUNT: usize = MAPHEIGHT * MAPWIDTH;
+
 pub struct Map {
     pub tiles: Vec<TileType>,
     pub rooms: Vec<Rect>,
@@ -60,18 +64,15 @@ impl Map {
 
     /// Generate a new map with rooms and corridors
     pub fn new_map_rooms_and_corridors() -> Map {
-        let height = 50;
-        let width = 80;
-
         let mut map = Map {
-            tiles: vec![TileType::Wall; width * height],
+            tiles: vec![TileType::Wall; MAPWIDTH * MAPHEIGHT],
             rooms: Vec::new(),
-            width: width as i32,
-            height: height as i32,
-            revealed_tiles: vec![false; width * height],
-            visible_tiles: vec![false; width * height],
-            blocked: vec![false; width * height],
-            tile_content: vec![Vec::new(); width * height],
+            width: MAPWIDTH as i32,
+            height: MAPHEIGHT as i32,
+            revealed_tiles: vec![false; MAPWIDTH * MAPHEIGHT],
+            visible_tiles: vec![false; MAPWIDTH * MAPHEIGHT],
+            blocked: vec![false; MAPWIDTH * MAPHEIGHT],
+            tile_content: vec![Vec::new(); MAPWIDTH * MAPHEIGHT],
         };
 
         const MAX_ROOMS: i32 = 30;

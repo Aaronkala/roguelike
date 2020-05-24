@@ -6,6 +6,8 @@ extern crate specs_derive;
 
 mod components;
 mod damage_system;
+mod gamelog;
+mod gui;
 mod map;
 mod map_indexing_system;
 mod melee_combat_system;
@@ -16,11 +18,9 @@ mod visibility_system;
 
 pub use components::*;
 use damage_system::DamageSystem;
-pub use map::*;
 use map_indexing_system::MapIndexingSystem;
 use melee_combat_system::MeleeCombatSystem;
 use monster_ai_system::MonsterAI;
-pub use player::*;
 pub use rect::Rect;
 use visibility_system::VisibilitySystem;
 
@@ -78,7 +78,7 @@ impl GameState for State {
                 newrunstate = RunState::AwaitingInput;
             }
             RunState::AwaitingInput => {
-                newrunstate = player_input(self, ctx);
+                newrunstate = player::player_input(self, ctx);
             }
             RunState::PlayerTurn => {
                 self.run_systems();
@@ -96,11 +96,11 @@ impl GameState for State {
         }
 
         damage_system::delete_the_dead(&mut self.ecs);
-        draw_map(&self.ecs, ctx);
+        map::draw_map(&self.ecs, ctx);
 
         let positions = self.ecs.read_storage::<Position>();
         let renderables = self.ecs.read_storage::<Renderable>();
-        let map = self.ecs.fetch::<Map>();
+        let map = self.ecs.fetch::<map::Map>();
 
         // Render all entities that are not rendered by the map, e.g.
         // player and monsters
@@ -110,14 +110,17 @@ impl GameState for State {
                 ctx.set(pos.x, pos.y, render.fg, render.bg, render.glyph);
             }
         }
+
+        gui::draw_ui(&self.ecs, ctx);
     }
 }
 
 fn main() {
     use rltk::RltkBuilder;
-    let context = RltkBuilder::simple80x50()
+    let mut context = RltkBuilder::simple80x50()
         .with_title("Roguelike Tutorial")
         .build();
+    context.with_post_scanlines(true);
 
     let mut gs = State { ecs: World::new() };
 
@@ -133,7 +136,7 @@ fn main() {
     gs.ecs.register::<WantsToMelee>();
     gs.ecs.register::<SufferDamage>();
 
-    let map = Map::new_map_rooms_and_corridors();
+    let map = map::Map::new_map_rooms_and_corridors();
     let (player1_x, player1_y) = map.rooms[0].center();
 
     // Create player
@@ -166,6 +169,9 @@ fn main() {
         })
         .build();
 
+    gs.ecs.insert(gamelog::GameLog {
+        entries: vec!["Welcome to Rust Roguelike".to_string()],
+    });
     // Insert player into GameState
     gs.ecs.insert(player_entity);
     // Insert player location to GameState

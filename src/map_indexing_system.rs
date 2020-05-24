@@ -1,5 +1,5 @@
 extern crate specs;
-use super::{BlocksTile, Map, Position};
+use super::{map::Map, BlocksTile, Position};
 use specs::prelude::*;
 
 pub struct MapIndexingSystem {}

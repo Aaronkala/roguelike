@@ -1,7 +1,7 @@
 extern crate rltk;
 use rltk::{Point, Rltk, VirtualKeyCode};
 extern crate specs;
-use super::{CombatStats, Map, Player, Position, RunState, State, Viewshed, WantsToMelee};
+use super::{map::Map, CombatStats, Player, Position, RunState, State, Viewshed, WantsToMelee};
 use specs::prelude::*;
 use std::cmp::{max, min};
 

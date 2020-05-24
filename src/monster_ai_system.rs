@@ -1,5 +1,5 @@
 extern crate specs;
-use super::{Map, Monster, Position, RunState, Viewshed, WantsToMelee};
+use super::{map::Map, Monster, Position, RunState, Viewshed, WantsToMelee};
 use specs::prelude::*;
 extern crate rltk;
 use rltk::{console, Point};
@@ -61,8 +61,6 @@ impl<'a> System<'a> for MonsterAI {
                     map.xy_idx(player_pos.x, player_pos.y),
                     &mut *map,
                 );
-
-                console::log(format!("{}", path.success));
 
                 if path.success && path.steps.len() > 1 {
                     // Initial idx
