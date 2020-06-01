@@ -1,22 +1,30 @@
 extern crate specs;
-use crate::{gamelog::GameLog, CombatStats, Name, Player, SufferDamage};
+use crate::{gamelog::GameLog, CombatStats, Map, Name, Player, Position, RunState, SufferDamage};
 use specs::prelude::*;
 
 pub struct DamageSystem {}
 
 impl<'a> System<'a> for DamageSystem {
     type SystemData = (
+        Entities<'a>,
         WriteStorage<'a, CombatStats>,
         WriteStorage<'a, SufferDamage>,
+        WriteExpect<'a, Map>,
+        ReadStorage<'a, Position>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (mut stats, mut damage) = data;
+        let (entities, mut stats, mut damage, mut map, position) = data;
 
         // For each entity with stats and incoming damage minus all the incoming
         // damage from the hp stats of that entity.
-        for (mut stats, damage) in (&mut stats, &damage).join() {
+        for (entity, mut stats, damage) in (&entities, &mut stats, &damage).join() {
             stats.hp -= damage.amount.iter().sum::<i32>();
+            let pos = position.get(entity);
+            if let Some(pos) = pos {
+                let idx = map.xy_idx(pos.x, pos.y);
+                map.bloodstains.insert(idx);
+            }
         }
 
         // Clear all incoming damage for all entities
@@ -45,7 +53,8 @@ pub fn delete_the_dead(ecs: &mut World) {
                         dead.push(entity)
                     }
                     Some(_player) => {
-                        log.entries.push("You are dead".to_string());
+                        let mut runstate = ecs.write_resource::<RunState>();
+                        *runstate = RunState::GameOver;
                     }
                 }
             }

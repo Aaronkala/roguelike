@@ -168,3 +168,8 @@ pub struct SerializationHelper {
 pub struct WantsToUnequipItem {
     pub item: Entity,
 }
+
+#[derive(Component, Serialize, Deserialize, Clone)]
+pub struct ParticleLifetime {
+    pub lifetime_ms: f32,
+}

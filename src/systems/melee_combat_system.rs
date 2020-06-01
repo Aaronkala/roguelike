@@ -1,7 +1,7 @@
 extern crate specs;
 use crate::{
-    gamelog::GameLog, CombatStats, DefenseBonus, Equipped, MeleePowerBonus, Name, SufferDamage,
-    WantsToMelee,
+    gamelog::GameLog, particle_system::ParticleBuilder, CombatStats, DefenseBonus, Equipped,
+    MeleePowerBonus, Name, Position, SufferDamage, WantsToMelee,
 };
 use specs::prelude::*;
 
@@ -18,6 +18,8 @@ impl<'a> System<'a> for MeleeCombatSystem {
         ReadStorage<'a, Equipped>,
         WriteStorage<'a, SufferDamage>,
         WriteExpect<'a, GameLog>,
+        WriteExpect<'a, ParticleBuilder>,
+        ReadStorage<'a, Position>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -31,6 +33,8 @@ impl<'a> System<'a> for MeleeCombatSystem {
             equipped,
             mut inflict_damage,
             mut log,
+            mut particle_builder,
+            positions,
         ) = data;
 
         // For all entities that want to melee and have stats
@@ -61,6 +65,18 @@ impl<'a> System<'a> for MeleeCombatSystem {
                         if equipped_item.owner == wants_melee.target {
                             defensive_bonus += defense_bonus.defense;
                         }
+                    }
+
+                    let pos = positions.get(wants_melee.target);
+                    if let Some(pos) = pos {
+                        particle_builder.request(
+                            pos.x,
+                            pos.y,
+                            rltk::RGB::named(rltk::ORANGE),
+                            rltk::RGB::named(rltk::BLACK),
+                            rltk::to_cp437('‼'),
+                            200.0,
+                        );
                     }
                     // Calculate damage and set it as zero if less than zero
                     // Attacks shouldn't heal :)
