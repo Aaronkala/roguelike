@@ -1,12 +1,75 @@
-use super::{
-  map, AreaOfEffect, BlocksTile, CombatStats, Confusion, Consumable, Entity, InflictsDamage, Item,
-  Monster, Name, Player, Position, ProvidesHealing, Ranged, Rect, Renderable, Viewshed, World,
-};
+use std::collections::HashMap;
+extern crate rltk;
 use rltk::{RandomNumberGenerator, RGB};
+extern crate specs;
+use super::{
+  map::MAPWIDTH, random_table::RandomTable, AreaOfEffect, BlocksTile, CombatStats, Confusion,
+  Consumable, DefenseBonus, EquipmentSlot, Equippable, InflictsDamage, Item, MeleePowerBonus,
+  Monster, Name, Player, Position, ProvidesHealing, Ranged, Rect, Renderable, SerializeMe,
+  Viewshed,
+};
+use crate::specs::saveload::{MarkedBuilder, SimpleMarker};
 use specs::prelude::*;
 
 const MAX_MONSTERS: i32 = 4;
-const MAX_ITEMS: i32 = 6;
+
+fn room_table(map_depth: i32) -> RandomTable {
+  RandomTable::new()
+    .add("Goblin", 10)
+    .add("Orc", 1 + map_depth)
+    .add("Health Potion", 7)
+    .add("Fireball Scroll", 2 + map_depth)
+    .add("Confusion Scroll", 2 + map_depth)
+    .add("Magic Missile Scroll", 4)
+    .add("Dagger", 3)
+    .add("Shield", 3)
+}
+
+/// Fills a room with stuff!
+pub fn spawn_room(ecs: &mut World, room: &Rect, map_depth: i32) {
+  let spawn_table = room_table(map_depth);
+  let mut spawn_points: HashMap<usize, String> = HashMap::new();
+
+  {
+    let mut rng = ecs.write_resource::<RandomNumberGenerator>();
+    let num_spawns = rng.roll_dice(1, MAX_MONSTERS + 3) + (map_depth - 1) - 3;
+
+    for _i in 0..num_spawns {
+      let mut added = false;
+      let mut tries = 0;
+      while !added && tries < 20 {
+        let x = (room.x1 + rng.roll_dice(1, i32::abs(room.x2 - room.x1))) as usize;
+        let y = (room.y1 + rng.roll_dice(1, i32::abs(room.y2 - room.y1))) as usize;
+        let idx = (y * MAPWIDTH) + x;
+        if !spawn_points.contains_key(&idx) {
+          spawn_points.insert(idx, spawn_table.roll(&mut rng));
+          added = true;
+          tries += 1;
+        } else {
+          tries += 1;
+        }
+      }
+    }
+  }
+
+  // Spawn everything
+  for spawn in spawn_points.iter() {
+    let x = (*spawn.0 % MAPWIDTH) as i32;
+    let y = (*spawn.0 / MAPWIDTH) as i32;
+
+    match spawn.1.as_ref() {
+      "Goblin" => goblin(ecs, x, y),
+      "Orc" => orc(ecs, x, y),
+      "Health Potion" => health_potion(ecs, x, y),
+      "Fireball Scroll" => fireball_scroll(ecs, x, y),
+      "Confusion Scroll" => confusion_scroll(ecs, x, y),
+      "Magic Missile Scroll" => magic_missile_scroll(ecs, x, y),
+      "Dagger" => dagger(ecs, x, y),
+      "Shield" => shield(ecs, x, y),
+      _ => {}
+    }
+  }
+}
 
 pub fn player(ecs: &mut World, player_x: i32, player_y: i32) -> Entity {
   ecs
@@ -36,6 +99,7 @@ pub fn player(ecs: &mut World, player_x: i32, player_y: i32) -> Entity {
       range: 8,
       dirty: true,
     })
+    .marked::<SimpleMarker<SerializeMe>>()
     .build()
 }
 
@@ -65,6 +129,7 @@ fn monster<S: ToString>(ecs: &mut World, x: i32, y: i32, glyph: u8, name: S) {
       dirty: true,
     })
     .with(BlocksTile {})
+    .marked::<SimpleMarker<SerializeMe>>()
     .build();
 }
 
@@ -76,85 +141,7 @@ fn goblin(ecs: &mut World, x: i32, y: i32) {
   monster(ecs, x, y, rltk::to_cp437('g'), "Goblin");
 }
 
-pub fn random_monster(ecs: &mut World, x: i32, y: i32) {
-  let roll: i32;
-  {
-    let mut rng = ecs.write_resource::<RandomNumberGenerator>();
-    roll = rng.roll_dice(1, 2);
-  }
-  match roll {
-    1 => orc(ecs, x, y),
-    _ => goblin(ecs, x, y),
-  }
-}
-
-/// Fills a room with stuff!
-pub fn spawn_room(ecs: &mut World, room: &Rect) {
-  let mut monster_spawn_points: Vec<usize> = Vec::new();
-  let mut item_spawn_points: Vec<usize> = Vec::new();
-
-  {
-    let mut rng = ecs.write_resource::<RandomNumberGenerator>();
-    let num_monsters = rng.roll_dice(1, MAX_MONSTERS + 2) - 3;
-    let num_items = rng.roll_dice(1, MAX_ITEMS + 2) - 3;
-
-    for _i in 0..num_monsters {
-      let mut added = false;
-      while !added {
-        let x = (room.x1 + rng.roll_dice(1, i32::abs(room.x2 - room.x1))) as usize;
-        let y = (room.y1 + rng.roll_dice(1, i32::abs(room.y2 - room.y1))) as usize;
-        let idx = (y * map::MAPWIDTH) + x;
-        if !monster_spawn_points.contains(&idx) {
-          monster_spawn_points.push(idx);
-          added = true;
-        }
-      }
-    }
-
-    for _i in 0..num_items {
-      let mut added = false;
-      while !added {
-        let x = (room.x1 + rng.roll_dice(1, i32::abs(room.x2 - room.x1))) as usize;
-        let y = (room.y1 + rng.roll_dice(1, i32::abs(room.y2 - room.y1))) as usize;
-        let idx = (y * map::MAPWIDTH) + x;
-        if !item_spawn_points.contains(&idx) {
-          item_spawn_points.push(idx);
-          added = true;
-        }
-      }
-    }
-  }
-
-  // Spawn the monsters
-  for idx in monster_spawn_points.iter() {
-    let x = *idx % map::MAPWIDTH;
-    let y = *idx / map::MAPWIDTH;
-    random_monster(ecs, x as i32, y as i32);
-  }
-
-  // Spawn items
-  for idx in item_spawn_points.iter() {
-    let x = *idx % map::MAPWIDTH;
-    let y = *idx / map::MAPWIDTH;
-    random_item(ecs, x as i32, y as i32);
-  }
-}
-
 // ---- Items ----
-
-fn random_item(ecs: &mut World, x: i32, y: i32) {
-  let roll: i32;
-  {
-    let mut rng = ecs.write_resource::<RandomNumberGenerator>();
-    roll = rng.roll_dice(1, 4);
-  }
-  match roll {
-    1 => health_potion(ecs, x, y),
-    2 => magic_missile_scroll(ecs, x, y),
-    3 => confusion_scroll(ecs, x, y),
-    _ => fire_ball_scroll(ecs, x, y),
-  }
-}
 
 fn health_potion(ecs: &mut World, x: i32, y: i32) {
   ecs
@@ -172,6 +159,7 @@ fn health_potion(ecs: &mut World, x: i32, y: i32) {
     .with(Item {})
     .with(Consumable {})
     .with(ProvidesHealing { heal_amount: 8 })
+    .marked::<SimpleMarker<SerializeMe>>()
     .build();
 }
 
@@ -192,10 +180,11 @@ fn magic_missile_scroll(ecs: &mut World, x: i32, y: i32) {
     .with(Consumable {})
     .with(Ranged { range: 6 })
     .with(InflictsDamage { damage: 8 })
+    .marked::<SimpleMarker<SerializeMe>>()
     .build();
 }
 
-fn fire_ball_scroll(ecs: &mut World, x: i32, y: i32) {
+fn fireball_scroll(ecs: &mut World, x: i32, y: i32) {
   ecs
     .create_entity()
     .with(Position { x, y })
@@ -213,6 +202,7 @@ fn fire_ball_scroll(ecs: &mut World, x: i32, y: i32) {
     .with(Ranged { range: 6 })
     .with(InflictsDamage { damage: 20 })
     .with(AreaOfEffect { radius: 3 })
+    .marked::<SimpleMarker<SerializeMe>>()
     .build();
 }
 
@@ -233,5 +223,50 @@ fn confusion_scroll(ecs: &mut World, x: i32, y: i32) {
     .with(Consumable {})
     .with(Ranged { range: 6 })
     .with(Confusion { turns: 4 })
+    .marked::<SimpleMarker<SerializeMe>>()
+    .build();
+}
+
+fn dagger(ecs: &mut World, x: i32, y: i32) {
+  ecs
+    .create_entity()
+    .with(Position { x, y })
+    .with(Renderable {
+      glyph: rltk::to_cp437('/'),
+      fg: RGB::named(rltk::CYAN),
+      bg: RGB::named(rltk::BLACK),
+      render_order: 2,
+    })
+    .with(Name {
+      name: "Dagger".to_string(),
+    })
+    .with(Item {})
+    .with(Equippable {
+      slot: EquipmentSlot::Melee,
+    })
+    .with(MeleePowerBonus { power: 2 })
+    .marked::<SimpleMarker<SerializeMe>>()
+    .build();
+}
+
+fn shield(ecs: &mut World, x: i32, y: i32) {
+  ecs
+    .create_entity()
+    .with(Position { x, y })
+    .with(Renderable {
+      glyph: rltk::to_cp437('('),
+      fg: RGB::named(rltk::CYAN),
+      bg: RGB::named(rltk::BLACK),
+      render_order: 2,
+    })
+    .with(Name {
+      name: "Shield".to_string(),
+    })
+    .with(Item {})
+    .with(Equippable {
+      slot: EquipmentSlot::Shield,
+    })
+    .with(DefenseBonus { defense: 1 })
+    .marked::<SimpleMarker<SerializeMe>>()
     .build();
 }

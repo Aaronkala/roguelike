@@ -99,6 +99,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7e018d946b451de3736ee290fd507128ba2ff65318abb885095c261adacf086"
 dependencies = [
  "byteorder",
+ "serde",
 ]
 
 [[package]]
@@ -107,6 +108,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b198839a12c01f6b94e1b0cf89f214055415d16713bb6b1711ddf412a2f9410"
 dependencies = [
+ "serde",
  "ultraviolet",
 ]
 
@@ -154,6 +156,7 @@ dependencies = [
  "rand",
  "rand_xorshift",
  "regex",
+ "serde",
 ]
 
 [[package]]
@@ -653,6 +656,12 @@ checksum = "b2b3ea6ff95e175473f8ffe6a7eb7c00d054240321b84c57051175fe3c1e075e"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "itoa"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8b7a7c0c47db5545ed3fef7468ee7bb5b74691498139e4b3f6a20685dc6dd8e"
 
 [[package]]
 name = "jpeg-decoder"
@@ -1212,6 +1221,8 @@ name = "roguelike"
 version = "0.1.0"
 dependencies = [
  "rltk",
+ "serde",
+ "serde_json",
  "specs",
  "specs-derive",
 ]
@@ -1245,6 +1256,12 @@ dependencies = [
  "ordered-float",
  "stb_truetype",
 ]
+
+[[package]]
+name = "ryu"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed3d612bc64430efeb3f7ee6ef26d590dce0c43249217bddc62112540c7941e1"
 
 [[package]]
 name = "same-file"
@@ -1287,6 +1304,31 @@ name = "serde"
 version = "1.0.105"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e707fbbf255b8fc8c3b99abb91e7257a622caeb20a9818cbadbeeede4e0932ff"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.105"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac5d00fc561ba2724df6758a17de23df5914f20e41cb00f94d5b7ae42fffaff8"
+dependencies = [
+ "proc-macro2 1.0.9",
+ "quote 1.0.3",
+ "syn",
+]
+
+[[package]]
+name = "serde_json"
+version = "1.0.53"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "993948e75b189211a9b31a7528f950c6adc21f9720b6438ff80a7fa2f864cea2"
+dependencies = [
+ "itoa",
+ "ryu",
+ "serde",
+]
 
 [[package]]
 name = "shared_library"
@@ -1372,6 +1414,7 @@ dependencies = [
  "hibitset",
  "log",
  "rayon",
+ "serde",
  "shred",
  "shrev",
  "tuple_utils",

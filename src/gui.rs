@@ -1,9 +1,35 @@
 use super::{
-  gamelog::GameLog, map::Map, CombatStats, InBackpack, Name, Player, Point, Position, State,
-  Viewshed,
+  gamelog::GameLog, map::Map, CombatStats, Equipped, InBackpack, Name, Player, Point, Position,
+  RunState, State, Viewshed,
 };
 use rltk::{Console, Rltk, VirtualKeyCode, RGB};
 use specs::prelude::*;
+use std::iter::FromIterator;
+
+fn draw_menu_box(ctx: &mut Rltk, item_count: usize, offset: i32, menu_text: &str) {
+  ctx.draw_box(
+    15,
+    offset - 2,
+    31,
+    (item_count + 3) as i32,
+    RGB::named(rltk::WHITE),
+    RGB::named(rltk::BLACK),
+  );
+  ctx.print_color(
+    18,
+    offset - 2,
+    RGB::named(rltk::YELLOW),
+    RGB::named(rltk::BLACK),
+    menu_text,
+  );
+  ctx.print_color(
+    18,
+    offset + item_count as i32 + 1,
+    RGB::named(rltk::YELLOW),
+    RGB::named(rltk::BLACK),
+    "ESCAPE to cancel",
+  );
+}
 
 pub fn draw_ui(ecs: &World, ctx: &mut Rltk) {
   ctx.draw_box(
@@ -13,6 +39,17 @@ pub fn draw_ui(ecs: &World, ctx: &mut Rltk) {
     6,
     RGB::named(rltk::WHITE),
     RGB::named(rltk::BLACK),
+  );
+
+  // Display depth
+  let map = ecs.fetch::<Map>();
+  let depth = format!("Depth: {}", map.depth);
+  ctx.print_color(
+    2,
+    43,
+    RGB::named(rltk::YELLOW),
+    RGB::named(rltk::BLACK),
+    &depth,
   );
 
   // Display player stats
@@ -169,30 +206,8 @@ pub fn show_inventory(gs: &mut State, ctx: &mut Rltk) -> (ItemMenuResult, Option
     .join()
     .filter(|item| item.0.owner == *player_entity);
   let count = inventory.count();
-
   let mut y = (25 - (count / 2)) as i32;
-  ctx.draw_box(
-    15,
-    y - 2,
-    31,
-    (count + 3) as i32,
-    RGB::named(rltk::WHITE),
-    RGB::named(rltk::BLACK),
-  );
-  ctx.print_color(
-    18,
-    y - 2,
-    RGB::named(rltk::YELLOW),
-    RGB::named(rltk::BLACK),
-    "Inventory",
-  );
-  ctx.print_color(
-    18,
-    y + count as i32 + 1,
-    RGB::named(rltk::YELLOW),
-    RGB::named(rltk::BLACK),
-    "ESCAPE to cancel",
-  );
+  draw_menu_box(ctx, count, y, "Inventory");
 
   let mut equippable: Vec<Entity> = Vec::new();
   let mut j = 0;
@@ -255,31 +270,10 @@ pub fn drop_item_menu(gs: &mut State, ctx: &mut Rltk) -> (ItemMenuResult, Option
   let inventory = (&backpack, &names)
     .join()
     .filter(|item| item.0.owner == *player_entity);
-  let count = inventory.count();
 
+  let count = inventory.count();
   let mut y = (25 - (count / 2)) as i32;
-  ctx.draw_box(
-    15,
-    y - 2,
-    31,
-    (count + 3) as i32,
-    RGB::named(rltk::WHITE),
-    RGB::named(rltk::BLACK),
-  );
-  ctx.print_color(
-    18,
-    y - 2,
-    RGB::named(rltk::YELLOW),
-    RGB::named(rltk::BLACK),
-    "Drop Which Item?",
-  );
-  ctx.print_color(
-    18,
-    y + count as i32 + 1,
-    RGB::named(rltk::YELLOW),
-    RGB::named(rltk::BLACK),
-    "ESCAPE to cancel",
-  );
+  draw_menu_box(ctx, count, y, "Drop Which Item?");
 
   let mut equippable: Vec<Entity> = Vec::new();
   let mut j = 0;
@@ -391,4 +385,212 @@ pub fn ranged_target(
   }
 
   (ItemMenuResult::NoResponse, None)
+}
+
+#[derive(PartialEq, Copy, Clone)]
+pub enum MainMenuSelection {
+  NewGame,
+  LoadGame,
+  Quit,
+}
+
+#[derive(PartialEq, Copy, Clone)]
+pub enum MainMenuResult {
+  NoSelection { selected: MainMenuSelection },
+  Selected { selected: MainMenuSelection },
+}
+
+#[derive(Copy, Clone)]
+struct MenuItem {
+  pub selection: MainMenuSelection,
+  pub text: &'static str,
+  pub visible: bool,
+}
+
+pub fn main_menu(gs: &mut State, ctx: &mut Rltk) -> MainMenuResult {
+  let save_exists = super::saveload_system::does_save_exist();
+  let runstate = gs.ecs.fetch::<RunState>();
+
+  ctx.print_color_centered(
+    15,
+    RGB::named(rltk::YELLOW),
+    RGB::named(rltk::BLACK),
+    "Roguelike",
+  );
+
+  if let RunState::MainMenu {
+    menu_selection: selection,
+  } = *runstate
+  {
+    let initial_options = vec![
+      MenuItem {
+        selection: MainMenuSelection::NewGame,
+        text: "Begin New Game",
+        visible: true,
+      },
+      MenuItem {
+        selection: MainMenuSelection::LoadGame,
+        text: "Load Game",
+        visible: save_exists,
+      },
+      MenuItem {
+        selection: MainMenuSelection::Quit,
+        text: "Quit",
+        visible: true,
+      },
+    ];
+    let options = Vec::from_iter(initial_options.iter().filter(|&x| x.visible));
+
+    for x in 0..options.len() {
+      let color: RGB;
+      if selection == options[x].selection {
+        color = RGB::named(rltk::MAGENTA);
+      } else {
+        color = RGB::named(rltk::WHITE);
+      }
+      ctx.print_color_centered(
+        24 + x as i32,
+        color,
+        RGB::named(rltk::BLACK),
+        options[x].text,
+      );
+    }
+
+    match ctx.key {
+      None => {
+        return MainMenuResult::NoSelection {
+          selected: selection,
+        }
+      }
+      Some(key) => match key {
+        VirtualKeyCode::Escape => {
+          return MainMenuResult::NoSelection {
+            selected: MainMenuSelection::Quit,
+          }
+        }
+        VirtualKeyCode::Up => {
+          let current_selection_index = options.iter().position(|&x| x.selection == selection);
+          let newselection;
+
+          match current_selection_index {
+            Some(index) => {
+              if index > 0 {
+                newselection = options[index - 1].selection;
+              } else {
+                newselection = options[options.len() - 1].selection;
+              }
+            }
+            None => {
+              newselection = selection;
+            }
+          }
+
+          return MainMenuResult::NoSelection {
+            selected: newselection,
+          };
+        }
+        VirtualKeyCode::Down => {
+          let current_selection_index = options.iter().position(|&x| x.selection == selection);
+          let newselection;
+
+          match current_selection_index {
+            Some(index) => {
+              if index < options.len() - 1 {
+                newselection = options[index + 1].selection;
+              } else {
+                newselection = options[0].selection;
+              }
+            }
+            None => {
+              newselection = selection;
+            }
+          }
+
+          return MainMenuResult::NoSelection {
+            selected: newselection,
+          };
+        }
+        VirtualKeyCode::Return => {
+          return MainMenuResult::Selected {
+            selected: selection,
+          }
+        }
+        _ => {
+          return MainMenuResult::NoSelection {
+            selected: selection,
+          }
+        }
+      },
+    }
+  }
+
+  MainMenuResult::NoSelection {
+    selected: MainMenuSelection::NewGame,
+  }
+}
+
+pub fn unequip_menu(gs: &mut State, ctx: &mut Rltk) -> (ItemMenuResult, Option<Entity>) {
+  let player_entity = gs.ecs.fetch::<Entity>();
+  let names = gs.ecs.read_storage::<Name>();
+  let equipped_items = gs.ecs.read_storage::<Equipped>();
+  let entities = gs.ecs.entities();
+
+  let player_equipped = (&equipped_items, &names)
+    .join()
+    .filter(|(equipment, _name)| equipment.owner == *player_entity);
+
+  let count = player_equipped.count();
+  let mut y = (25 - (count / 2)) as i32;
+  draw_menu_box(ctx, count, y, "Which item to Unequip?");
+
+  let mut unequippable: Vec<Entity> = Vec::new();
+  let mut j = 0;
+  for (entity, _equipped, name) in (&entities, &equipped_items, &names)
+    .join()
+    .filter(|(_entity, equipped_item, _name)| equipped_item.owner == *player_entity)
+  {
+    ctx.set(
+      17,
+      y,
+      RGB::named(rltk::WHITE),
+      RGB::named(rltk::BLACK),
+      rltk::to_cp437('('),
+    );
+    ctx.set(
+      18,
+      y,
+      RGB::named(rltk::YELLOW),
+      RGB::named(rltk::BLACK),
+      97 + j as u8,
+    );
+    ctx.set(
+      19,
+      y,
+      RGB::named(rltk::WHITE),
+      RGB::named(rltk::BLACK),
+      rltk::to_cp437(')'),
+    );
+
+    ctx.print(21, y, &name.name.to_string());
+    unequippable.push(entity);
+    y += 1;
+    j += 1;
+  }
+
+  match ctx.key {
+    None => (ItemMenuResult::NoResponse, None),
+    Some(key) => match key {
+      VirtualKeyCode::Escape => (ItemMenuResult::Cancel, None),
+      _ => {
+        let selection = rltk::letter_to_option(key);
+        if selection > -1 && selection < count as i32 {
+          return (
+            ItemMenuResult::Selected,
+            Some(unequippable[selection as usize]),
+          );
+        }
+        (ItemMenuResult::NoResponse, None)
+      }
+    },
+  }
 }

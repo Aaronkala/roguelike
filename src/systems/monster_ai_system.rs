@@ -1,5 +1,5 @@
 extern crate specs;
-use super::{map::Map, Confusion, Monster, Position, RunState, Viewshed, WantsToMelee};
+use crate::{map::Map, Confusion, Monster, Position, RunState, Viewshed, WantsToMelee};
 use specs::prelude::*;
 extern crate rltk;
 use rltk::Point;
